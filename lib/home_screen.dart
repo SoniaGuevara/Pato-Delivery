@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import 'package:pato_delivery/bloc/ranking/ranking_bloc.dart';
+import 'package:pato_delivery/bloc/ranking/ranking_state.dart';
+import 'package:pato_delivery/models/repartidor_model.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -91,24 +96,70 @@ class DeliveryRankingCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _buildRankItem('🥇', 'Pato Vehloz', '4.9 ⭐', context),
-            _buildRankItem('🥈', 'Pato Rápido', '4.8 ⭐', context),
-            _buildRankItem('🥉', 'Pato Express', '4.7 ⭐', context),
+            BlocBuilder<RankingBloc, RankingState>(
+              builder: (context, state) {
+                if (state is RankingCargando || state is RankingInicial) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                } else if (state is RankingCargado) {
+                  final topTres = state.resumen.topTres;
+
+                  if (topTres.length < 3) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8),
+                      child: Text(
+                        'Aún no hay suficientes datos para mostrar el ranking.',
+                        style: TextStyle(color: Colors.black54),
+                      ),
+                    );
+                  }
+
+                  const medals = ['🥇', '🥈', '🥉'];
+
+                  return Column(
+                    children: List.generate(
+                      3,
+                      (index) => _buildRankItem(medals[index], topTres[index]),
+                    ),
+                  );
+                } else if (state is RankingError) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      state.mensaje,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                  );
+                }
+
+                return const SizedBox.shrink();
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildRankItem(String medal, String name, String rating, BuildContext context) {
+  Widget _buildRankItem(String medal, Repartidor repartidor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
           Text(medal, style: const TextStyle(fontSize: 24)),
           const SizedBox(width: 12),
-          Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black))),
-          Text(rating, style: const TextStyle(color: Colors.black)),
+          Expanded(
+            child: Text(
+              repartidor.nombre,
+              style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.black),
+            ),
+          ),
+          Text(
+            '${repartidor.rating.toStringAsFixed(1)} ⭐',
+            style: const TextStyle(color: Colors.black),
+          ),
         ],
       ),
     );

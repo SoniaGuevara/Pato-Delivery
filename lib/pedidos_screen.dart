@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pato_delivery/bloc/pedidos/pedidos_bloc.dart';
-import 'package:pato_delivery/bloc/pedidos/pedidos_event.dart';
 import 'package:pato_delivery/bloc/pedidos/pedidos_state.dart';
 import 'package:pato_delivery/models/pedido_model.dart';
 
@@ -10,32 +9,46 @@ class PedidosScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => PedidosBloc()..add(CargarPedidos()),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Mis Pedidos'),
-          backgroundColor: Colors.amber[700],
-          foregroundColor: Colors.black,
-        ),
-        body: BlocBuilder<PedidosBloc, PedidosState>(
-          builder: (context, state) {
-            if (state is PedidosCargando) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (state is PedidosCargados) {
-              return ListView.builder(
-                itemCount: state.pedidos.length,
-                itemBuilder: (context, index) {
-                  final pedido = state.pedidos[index];
-                  return _buildPedidoCard(pedido);
-                },
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mis Pedidos'),
+        backgroundColor: Colors.amber[700],
+        foregroundColor: Colors.black,
+      ),
+      body: BlocBuilder<PedidosBloc, PedidosState>(
+        builder: (context, state) {
+          if (state is PedidosCargando || state is PedidosInicial) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is PedidosCargados) {
+            if (state.pedidos.isEmpty) {
+              return const Center(
+                child: Text(
+                  'Todavía no registras pedidos.',
+                  style: TextStyle(color: Colors.white70),
+                ),
               );
-            } else if (state is PedidosError) {
-              return Center(child: Text(state.mensaje));
             }
-            return const SizedBox();
-          },
-        ),
+            return ListView.builder(
+              itemCount: state.pedidos.length,
+              itemBuilder: (context, index) {
+                final pedido = state.pedidos[index];
+                return _buildPedidoCard(pedido);
+              },
+            );
+          } else if (state is PedidosError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  state.mensaje,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+              ),
+            );
+          }
+          return const SizedBox();
+        },
       ),
     );
   }
