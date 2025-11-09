@@ -1,86 +1,109 @@
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pato_delivery/bloc/ranking/ranking_bloc.dart';
+import 'package:pato_delivery/bloc/ranking/ranking_state.dart';
+import 'package:pato_delivery/models/ranking_resumen.dart';
+import 'package:pato_delivery/models/repartidor_model.dart';
 
-// --- Modelo de Datos para el Repartidor ---
-class Repartidor {
-  final int rank;
-  final String nombre;
-  final int entregas;
-  final double rating;
-  final int tiempoPromedio;
-  final String avatarUrl;
-
-
-  const Repartidor({
-    required this.rank,
-    required this.nombre,
-    required this.entregas,
-    required this.rating,
-    required this.tiempoPromedio,
-    required this.avatarUrl,
-  });
-}
-
-
-// --- Datos de Ejemplo (ahora son constantes globales) ---
-const List<Repartidor> _repartidoresData = [
-  Repartidor(rank: 1, nombre: 'Pato Veloz', entregas: 342, rating: 4.9, tiempoPromedio: 12, avatarUrl: ''),
-  Repartidor(rank: 2, nombre: 'Pato Rápido', entregas: 298, rating: 4.8, tiempoPromedio: 14, avatarUrl: ''),
-  Repartidor(rank: 3, nombre: 'Pato Express', entregas: 276, rating: 4.7, tiempoPromedio: 15, avatarUrl: ''),
-  Repartidor(rank: 4, nombre: 'Pato Turbo', entregas: 245, rating: 4.6, tiempoPromedio: 16, avatarUrl: ''),
-  Repartidor(rank: 5, nombre: 'Pato Flash', entregas: 221, rating: 4.5, tiempoPromedio: 18, avatarUrl: ''),
-  Repartidor(rank: 6, nombre: 'Pato Correcaminos', entregas: 198, rating: 4.4, tiempoPromedio: 19, avatarUrl: ''),
-  Repartidor(rank: 7, nombre: 'Pato Sónico', entregas: 175, rating: 4.8, tiempoPromedio: 15, avatarUrl: ''),
-  Repartidor(rank: 8, nombre: 'Pato Usuario', entregas: 156, rating: 4.8, tiempoPromedio: 14, avatarUrl: ''),
-];
-
-const Repartidor _usuarioActualData = Repartidor(rank: 8, nombre: 'Pato Usuario', entregas: 156, rating: 4.8, tiempoPromedio: 14, avatarUrl: '');
-
-
-// --- Pantalla Principal del Ranking ---
 class RankingPage extends StatelessWidget {
-  const RankingPage({Key? key}) : super(key: key);
-
+  const RankingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     const goldColor = Color(0xFFFFD700);
     final backgroundColor = Colors.black54;
 
-
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child: Column(
-          children: [
-            const _RankingHeader(goldColor: goldColor),
-            _PodiumWidget(repartidores: _repartidoresData),
-            const SizedBox(height: 24),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _repartidoresData.length - 3,
-                itemBuilder: (context, index) {
-                  final repartidor = _repartidoresData[index + 3];
-                  return _RankingListItem(repartidor: repartidor);
-                },
-              ),
-            ),
-            const _YourPositionBar(usuarioActual: _usuarioActualData, goldColor: goldColor),
-          ],
+        child: BlocBuilder<RankingBloc, RankingState>(
+          builder: (context, state) {
+            if (state is RankingCargando || state is RankingInicial) {
+              return const Center(child: CircularProgressIndicator());
+            } else if (state is RankingCargado) {
+              return RankingContent(goldColor: goldColor, resumen: state.resumen);
+            } else if (state is RankingError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    state.mensaje,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, fontSize: 16),
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
         ),
       ),
     );
   }
 }
 
+class RankingContent extends StatelessWidget {
+  const RankingContent({
+    super.key,
+    required this.goldColor,
+    required this.resumen,
+  });
 
-// --- Widget para el Header ---
-class _RankingHeader extends StatelessWidget {
   final Color goldColor;
-  const _RankingHeader({Key? key, required this.goldColor}) : super(key: key);
+  final RankingResumen resumen;
 
+  @override
+  Widget build(BuildContext context) {
+    final repartidores = resumen.repartidores;
+    final topTres = resumen.topTres;
+    final resto = resumen.resto;
+
+    if (repartidores.isEmpty) {
+      return const Center(
+        child: Text(
+          'Aún no hay datos de ranking disponibles',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        _RankingHeader(goldColor: goldColor),
+        if (topTres.length == 3)
+          _PodiumWidget(repartidores: topTres)
+        else
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'Necesitamos al menos tres repartidores para mostrar el podio.',
+              style: TextStyle(color: Colors.white70),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        const SizedBox(height: 24),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: resto.length,
+            itemBuilder: (context, index) {
+              final repartidor = resto[index];
+              return _RankingListItem(repartidor: repartidor);
+            },
+          ),
+        ),
+        _YourPositionBar(usuarioActual: resumen.usuarioActual, goldColor: goldColor),
+      ],
+    );
+  }
+}
+
+class _RankingHeader extends StatelessWidget {
+  const _RankingHeader({required this.goldColor});
+
+  final Color goldColor;
 
   @override
   Widget build(BuildContext context) {
@@ -100,12 +123,10 @@ class _RankingHeader extends StatelessWidget {
   }
 }
 
-
-// --- Widget para el Podio ---
 class _PodiumWidget extends StatelessWidget {
-  final List<Repartidor> repartidores;
-  const _PodiumWidget({Key? key, required this.repartidores}) : super(key: key);
+  const _PodiumWidget({required this.repartidores});
 
+  final List<Repartidor> repartidores;
 
   @override
   Widget build(BuildContext context) {
@@ -142,25 +163,20 @@ class _PodiumWidget extends StatelessWidget {
   }
 }
 
-
-// --- Widget para cada lugar del Podio ---
 class _PodiumPlaceWidget extends StatelessWidget {
-  final Repartidor repartidor;
-  final Color borderColor;
-  final double podiumHeight;
-  final double avatarRadius;
-  final bool isFirstPlace;
-
-
   const _PodiumPlaceWidget({
-    Key? key,
     required this.repartidor,
     required this.borderColor,
     required this.podiumHeight,
     required this.avatarRadius,
     this.isFirstPlace = false,
-  }) : super(key: key);
+  });
 
+  final Repartidor repartidor;
+  final Color borderColor;
+  final double podiumHeight;
+  final double avatarRadius;
+  final bool isFirstPlace;
 
   @override
   Widget build(BuildContext context) {
@@ -172,8 +188,9 @@ class _PodiumPlaceWidget extends StatelessWidget {
           Transform.rotate(
             angle: -math.pi / 20,
             child: const Icon(Icons.emoji_events, color: Color(0xFFFFD700), size: 32),
-          ),
-        if (!isFirstPlace) const SizedBox(height: 32),
+          )
+        else
+          const SizedBox(height: 32),
         const SizedBox(height: 4),
         CircleAvatar(
           radius: avatarRadius + 3,
@@ -184,9 +201,10 @@ class _PodiumPlaceWidget extends StatelessWidget {
             child: Text(
               repartidor.nombre.substring(0, 2).toUpperCase(),
               style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: avatarRadius * 0.6),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: avatarRadius * 0.6,
+              ),
             ),
           ),
         ),
@@ -221,23 +239,25 @@ class _PodiumPlaceWidget extends StatelessWidget {
             border: Border.all(color: borderColor, width: 2),
           ),
           child: Center(
-              child: Text(
-                '#${repartidor.rank}',
-                style: TextStyle(
-                    color: borderColor, fontSize: 32, fontWeight: FontWeight.w900),
-              )),
+            child: Text(
+              '#${repartidor.rank}',
+              style: TextStyle(
+                color: borderColor,
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
-
-// --- Widget para cada item de la lista de ranking ---
 class _RankingListItem extends StatelessWidget {
-  final Repartidor repartidor;
-  const _RankingListItem({Key? key, required this.repartidor}) : super(key: key);
+  const _RankingListItem({required this.repartidor});
 
+  final Repartidor repartidor;
 
   @override
   Widget build(BuildContext context) {
@@ -266,9 +286,10 @@ class _RankingListItem extends StatelessWidget {
             child: Text(
               repartidor.nombre.substring(0, 2).toUpperCase(),
               style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -299,7 +320,9 @@ class _RankingListItem extends StatelessWidget {
               Text(
                 '${repartidor.rating} ★',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 '${repartidor.tiempoPromedio} min',
@@ -316,14 +339,11 @@ class _RankingListItem extends StatelessWidget {
   }
 }
 
-
-// --- Widget para la barra inferior de "Tu Posición" ---
 class _YourPositionBar extends StatelessWidget {
+  const _YourPositionBar({required this.usuarioActual, required this.goldColor});
+
   final Repartidor usuarioActual;
   final Color goldColor;
-
-  const _YourPositionBar({Key? key, required this.usuarioActual, required this.goldColor}) : super(key: key);
-
 
   @override
   Widget build(BuildContext context) {
@@ -352,9 +372,10 @@ class _YourPositionBar extends StatelessWidget {
             child: Text(
               usuarioActual.nombre.substring(0, 2).toUpperCase(),
               style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12),
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -385,7 +406,9 @@ class _YourPositionBar extends StatelessWidget {
               Text(
                 '${usuarioActual.rating} ★',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 '${usuarioActual.tiempoPromedio} min',
@@ -401,3 +424,4 @@ class _YourPositionBar extends StatelessWidget {
     );
   }
 }
+
